@@ -1,7 +1,5 @@
 import React from "react";
 
-import React from "react";
-
 const QuickQuestions = ({ onQuestionClick }) => {
   const quickQuestions = [
     // 더 구체적이고 명확한 질문들
