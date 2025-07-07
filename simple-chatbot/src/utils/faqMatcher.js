@@ -1,3 +1,5 @@
+// 📁 src/utils/faqMatcher.js - 개선된 매칭 알고리즘
+import { faqDatabase } from "../data/faqData";
 /**
  * 개선된 FAQ 매칭 알고리즘
  * 더 정확한 의도 파악을 위한 고급 매칭
