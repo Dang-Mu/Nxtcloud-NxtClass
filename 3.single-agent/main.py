@@ -17,7 +17,7 @@ model_id = os.environ["BEDROCK_MODEL_ID"]
 # Create LLM instance with Bedrock
 llm = LLM(
     model=f"bedrock/{model_id}",
-    temperature=0.1,
+    temperature=0.2,
     max_tokens=1000
 )
 
@@ -87,10 +87,10 @@ def process_user_query(question: str) -> str:
 if __name__ == "__main__":
     # 테스트용 예시들
     test_questions = [
-        "내 정보를 조회해주세요",
-        "국문학과 관련 강의 검색해줘",
-        "다음 학기 개설 과목 알려줘",
-        "나에게 적합한 강의 추천해주세요"
+        # "내 정보를 조회해주세요",
+        "영문학과 관련 강의 검색해줘",
+        "이전 학기 개설 과목 알려줘",
+        # "나에게 적합한 강의 추천해주세요"
     ]
     
     print("=== 학생 정보 및 강의 상담 시스템 ===\n")

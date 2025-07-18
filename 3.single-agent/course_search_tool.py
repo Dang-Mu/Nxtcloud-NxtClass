@@ -104,12 +104,32 @@ class CourseSearchTool(BaseTool):
             'course_type': None
         }
         
+        # 동의어/유사어 매핑
+        synonym_mapping = {
+            '국문학': ['국문학', '한국어문학', '한국문학', '국어국문학'],
+            '국문': ['국문', '한국어문', '한국문', '국어국문'],
+            '영문학': ['영문학', '영어영문학', '영어문학'],
+            '영문': ['영문', '영어영문', '영어'],
+            '중문학': ['중문학', '중국학', '중국어문'],
+            '중문': ['중문', '중국', '중국어'],
+            '심리학': ['심리학', '심리'],
+            '경영학': ['경영학', '경영', '기업경영'],
+            '컴퓨터': ['컴퓨터', '소프트웨어', 'SW', 'IT', '인공지능', 'AI'],
+            '수학': ['수학', '응용수학', '통계'],
+            '물리': ['물리', '물리학', '응용물리'],
+            '화학': ['화학', '응용화학', '생화학'],
+            '역사': ['역사', '한국역사', '세계사'],
+            '미술': ['미술', '회화', '조형', '디자인'],
+            '음악': ['음악', '성악', '피아노', '관현악'],
+            '체육': ['체육', '스포츠', '운동']
+        }
+        
         # 학년 추출 (1학년, 2학년, 3학년, 4학년)
         grade_match = re.search(r'([1-4])학년', query)
         if grade_match:
             conditions['grade'] = grade_match.group(1)
         
-        # 학과명 추출 (~~학과, ~~과)
+        # 학과명 추출 (~~학과, ~~과) - 동의어 매핑 적용
         dept_patterns = [
             r'(\w+학과)',
             r'(\w+과)(?!목)',  # '과목'의 '과'는 제외
@@ -122,17 +142,32 @@ class CourseSearchTool(BaseTool):
                 dept_name = dept_match.group(1)
                 # 일반적인 단어들 제외
                 if dept_name not in ['과목', '학과', '전공', '강의']:
-                    conditions['department'] = dept_name
+                    # 동의어 매핑 적용
+                    mapped_keywords = []
+                    for key, synonyms in synonym_mapping.items():
+                        if dept_name in synonyms:
+                            mapped_keywords.extend(synonyms)
+                            break
+                    
+                    conditions['department'] = mapped_keywords if mapped_keywords else [dept_name]
                     break
         
-        # 과목 키워드 추출 (심리학, 수학, 영어 등)
+        # 과목 키워드 추출 - 동의어 매핑 적용
         subject_keywords = ['심리학', '심리', '수학', '영어', '물리학', '화학', '생물학', 
                           '역사', '철학', '경제학', '경영학', '컴퓨터', '프로그래밍',
-                          '데이터', '인공지능', 'AI', '머신러닝', '통계', '국문학']
+                          '데이터', '인공지능', 'AI', '머신러닝', '통계', '국문학', '국문',
+                          '영문학', '영문', '중문학', '중문']
         
         for keyword in subject_keywords:
             if keyword in query:
-                conditions['subject_keyword'] = keyword
+                # 동의어 매핑 적용
+                mapped_keywords = []
+                for key, synonyms in synonym_mapping.items():
+                    if keyword in synonyms:
+                        mapped_keywords.extend(synonyms)
+                        break
+                
+                conditions['subject_keyword'] = mapped_keywords if mapped_keywords else [keyword]
                 break
         
         # 교수명 추출 (교수 앞의 이름)
@@ -171,17 +206,35 @@ class CourseSearchTool(BaseTool):
             base_query += " AND (c.target_grade = %s OR c.target_grade LIKE %s OR c.target_grade = '전체')"
             params.extend([conditions['grade'], f"%{conditions['grade']}%"])
         
-        # 학과 조건 - major 테이블의 정보도 검색
+        # 학과 조건 - major 테이블의 정보도 검색 (동의어 지원)
         if conditions['department']:
-            base_query += " AND (m.department LIKE %s OR m.major_name LIKE %s OR m.college LIKE %s)"
-            dept_pattern = f"%{conditions['department']}%"
-            params.extend([dept_pattern, dept_pattern, dept_pattern])
+            dept_keywords = conditions['department'] if isinstance(conditions['department'], list) else [conditions['department']]
+            dept_conditions = []
+            for keyword in dept_keywords:
+                dept_conditions.extend([
+                    "m.department LIKE %s",
+                    "m.major_name LIKE %s", 
+                    "m.college LIKE %s"
+                ])
+                keyword_pattern = f"%{keyword}%"
+                params.extend([keyword_pattern, keyword_pattern, keyword_pattern])
+            
+            base_query += f" AND ({' OR '.join(dept_conditions)})"
         
-        # 과목 키워드 조건 - major 테이블의 정보도 검색
+        # 과목 키워드 조건 - major 테이블의 정보도 검색 (동의어 지원)
         if conditions['subject_keyword']:
-            base_query += " AND (c.course_name LIKE %s OR m.department LIKE %s OR m.major_name LIKE %s)"
-            keyword_pattern = f"%{conditions['subject_keyword']}%"
-            params.extend([keyword_pattern, keyword_pattern, keyword_pattern])
+            subject_keywords = conditions['subject_keyword'] if isinstance(conditions['subject_keyword'], list) else [conditions['subject_keyword']]
+            subject_conditions = []
+            for keyword in subject_keywords:
+                subject_conditions.extend([
+                    "c.course_name LIKE %s",
+                    "m.department LIKE %s",
+                    "m.major_name LIKE %s"
+                ])
+                keyword_pattern = f"%{keyword}%"
+                params.extend([keyword_pattern, keyword_pattern, keyword_pattern])
+            
+            base_query += f" AND ({' OR '.join(subject_conditions)})"
         
         # 교수 조건
         if conditions['professor']:
@@ -234,7 +287,6 @@ class CourseSearchTool(BaseTool):
                 LEFT JOIN major m ON c.department = m.major_code
                 WHERE c.offered_year = %s AND c.offered_semester = %s
                 ORDER BY m.college, m.department, c.course_name
-                LIMIT 30
                 """
                 cursor.execute(sql_query, (next_year, next_semester))
                 results = cursor.fetchall()
@@ -267,7 +319,6 @@ class CourseSearchTool(BaseTool):
                 LEFT JOIN major m ON c.department = m.major_code
                 WHERE c.offered_year = %s AND c.offered_semester = %s
                 ORDER BY m.college, m.department, c.course_name
-                LIMIT 30
                 """
                 cursor.execute(sql_query, (prev_year, prev_semester))
                 results = cursor.fetchall()
@@ -301,7 +352,6 @@ class CourseSearchTool(BaseTool):
                     LEFT JOIN major m ON c.department = m.major_code
                     WHERE c.offered_year = %s AND c.offered_semester = %s
                     ORDER BY m.college, m.department, c.course_name
-                    LIMIT 30
                     """
                     cursor.execute(sql_query, (current_year, current_semester))
                     results = cursor.fetchall()
@@ -336,7 +386,6 @@ class CourseSearchTool(BaseTool):
                 FROM courses c
                 LEFT JOIN major m ON c.department = m.major_code
                 ORDER BY m.college, m.department, c.course_name
-                LIMIT 30
                 """
                 cursor.execute(sql_query)
                 results = cursor.fetchall()
@@ -376,9 +425,16 @@ class CourseSearchTool(BaseTool):
             if not results:
                 return "조회된 강의가 없습니다."
             
+            # 전체 결과 개수
+            total_count = len(results)
+            
+            # 표시할 결과 개수 제한 (최대 10개)
+            display_limit = 10
+            display_results = results[:display_limit]
+            
             # 결과 포맷팅
             formatted_results = []
-            for i, course in enumerate(results, 1):
+            for i, course in enumerate(display_results, 1):
                 course_info = f"{i}. "
                 course_info += f"[{course.get('과목코드', 'N/A')}] {course.get('과목명', 'N/A')}"
                 if course.get('학점'):
@@ -391,8 +447,13 @@ class CourseSearchTool(BaseTool):
                     course_info += f" - {course['대상학년']}학년"
                 formatted_results.append(course_info)
             
+            # 결과 텍스트 생성
+            if total_count > display_limit:
+                result_text = f"총 {total_count}개의 강의가 개설되었습니다. (상위 {display_limit}개 표시)\n\n" + "\n".join(formatted_results)
+            else:
+                result_text = f"조회된 강의 ({total_count}개):\n" + "\n".join(formatted_results)
+            
             # 학기 정보가 있으면 포함해서 반환
-            result_text = f"조회된 강의 ({len(results)}개):\n" + "\n".join(formatted_results)
             if 'semester_context' in locals():
                 result_text = semester_context + result_text
             
