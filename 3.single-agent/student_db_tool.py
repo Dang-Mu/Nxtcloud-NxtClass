@@ -38,8 +38,8 @@ class StudentDBTool(BaseTool):
             cursor = connection.cursor(dictionary=True)
             
             # 현재 인증된 학생 (시뮬레이션용 - 실제로는 세션에서 가져옴)
-            # 테스트를 위해 다인장 학생으로 설정
-            authenticated_student = "다인장"
+            # 테스트를 위해 도윤정 학생으로 설정
+            authenticated_student = "도윤정"
             
             # 자연어 쿼리 처리 - 개인정보 보호 준수
             if "내" in query and ("정보" in query or "학적" in query):

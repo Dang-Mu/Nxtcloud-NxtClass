@@ -5,6 +5,8 @@ from datetime import datetime
 from student_db_tool import StudentDBTool
 from course_search_tool import CourseSearchTool, get_current_semester_info
 from enrollments_search_tool import EnrollmentsSearchTool
+from graduation_rag_tool import GraduationRAGTool
+from recommendation_engine_tool import RecommendationEngineTool
 
 # Load environment variables
 load_dotenv()
@@ -26,6 +28,8 @@ llm = LLM(
 student_db_tool = StudentDBTool()
 course_search_tool = CourseSearchTool()
 enrollments_search_tool = EnrollmentsSearchTool()
+graduation_rag_tool = GraduationRAGTool()
+recommendation_engine_tool = RecommendationEngineTool()
 
 # Create Agent with both tools and current date context
 agent = Agent(
@@ -48,21 +52,24 @@ agent = Agent(
     - StudentDBTool: 학생 정보 조회/열람 전용 (추천 기능 없음)
     - CourseSearchTool: 강의 정보 조회/검색 전용 (추천 기능 없음)
     - EnrollmentsSearchTool: 본인 이수 과목 조회/열람 전용 (추천 기능 없음)
+    - GraduationRAGTool: 학과별, 연도별 졸업 요건 정보 제공
+    - RecommendationEngineTool: 수강 내역 기반 다음 학기 과목 추천
     
     중요한 규칙:
-    1. 반드시 도구(StudentDBTool, CourseSearchTool, EnrollmentsSearchTool)를 사용해서 데이터베이스를 조회해야 합니다
+    1. 반드시 도구를 사용해서 정보를 조회해야 합니다
     2. 도구에서 반환된 결과만을 사용해서 답변합니다
     3. 절대로 추측하거나 학습된 지식을 사용해서 정보를 만들어내지 않습니다
-    4. 도구 결과에 없는 정보는 "데이터베이스에서 확인할 수 없습니다"라고 답변합니다
+    4. 도구 결과에 없는 정보는 "해당 정보를 찾을 수 없습니다"라고 답변합니다
     5. 학생 정보 질문 → StudentDBTool 사용
     6. 강의/과목 질문 → CourseSearchTool 사용
     7. 이수 과목 질문 → EnrollmentsSearchTool 사용
-    8. 위에 제공된 현재 날짜와 학기 정보를 활용하여 정확한 시간 기준으로 답변합니다
-    9. ⚠️ 추천 요청 시: "추천 기능은 별도의 추천 도구에서 제공됩니다. 현재는 조회/검색만 가능합니다."라고 안내
+    8. 졸업 요건 질문 → GraduationRAGTool 사용
+    9. 수강 추천 질문 → RecommendationEngineTool 사용 (먼저 StudentDBTool로 학생 정보 확인 필요)
+    10. 위에 제공된 현재 날짜와 학기 정보를 활용하여 정확한 시간 기준으로 답변합니다
     
     답변 형식: 도구 조회 결과를 그대로 전달하되, 사용자가 이해하기 쉽게 정리해서 제공합니다.''',
     llm=llm,
-    tools=[student_db_tool, course_search_tool, enrollments_search_tool],
+    tools=[student_db_tool, course_search_tool, enrollments_search_tool, graduation_rag_tool, recommendation_engine_tool],
     verbose=True
 )
 
@@ -93,8 +100,8 @@ if __name__ == "__main__":
     test_questions = [
         "내 정보를 조회해주세요",
         "내가 이수한 과목 보여주세요",
-        "영문학과 관련 강의 검색해줘",
-        "이전 학기에 수강한 과목 알려줘"
+        "내 전공 졸업 요건 알려줘",
+        "다음 학기 수강 추천해줘",
     ]
     
     print("=== 학생 정보 및 강의 상담 시스템 ===\n")
